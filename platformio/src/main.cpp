@@ -26,9 +26,7 @@ extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32
 #include <nvs_flash.h>
 #include <regex.h>
 #include <MacRandomizer.h>
-#include "Utils.hpp"
 #include "main.hpp"
-#include "types.hpp"
 
 MacRandomizer macRandom;
 
@@ -39,7 +37,6 @@ int scan_delay = 10; // Value is in milliseconds(1000ms = 1s) can set to 0 for f
 int send_delay = 10; // Value is in milliseconds(1000ms = 1s) can set to 0 for faster rates
 int deauthPacketRetransmissions = 40; // Packet retransmission value[~5-10 LOW | ~20-50 MEDIUM | 50+ HIGH | 100+ EXTREME **ONLY USE WITH PROPER COOLING]
 int retransmissionSessions = 3; // Number of times to repeat the retransmission of the packets
-int num_networks;
 
 // Print Wakeup Reason
 // ------------------------------------------
@@ -144,31 +141,17 @@ static void print_cipher_type(int pairwise_cipher, int group_cipher)
     }
 }
 
-int array_size(uint8_t *array) {
-  size_t size_charray = sizeof(CHANNEL_LIST) / sizeof(CHANNEL_LIST[0]);
-  return size_charray;
+wifi_ap_record_t* combine_arrays(wifi_ap_record_t *array1, size_t size1, wifi_ap_record_t *array2, size_t size2) {
+  wifi_ap_record_t* combined_array = (wifi_ap_record_t*)malloc((size1 + size2) * sizeof(wifi_ap_record_t));
+  if (!combined_array) return NULL;
+  for (size_t i = 0; i < size1; i++) {
+    combined_array[i] = array1[i];
+  }
+  for (size_t j = 0; j < size2; j++) {
+    combined_array[size1 + j] = array2[j];
+  }
+  return combined_array;
 }
-
-wifi_ap_record_t combine_arrays(wifi_ap_record_t *array1, size_t size1, wifi_ap_record_t *array2, size_t size2) {
-  wifi_ap_record_t combined_array[size1 + size2] = {};
-  memcpy(combined_array, array1, size1 * sizeof(wifi_ap_record_t));
-  memcpy(combined_array + size1, array2, size2 * sizeof(wifi_ap_record_t));
-  return *combined_array;
-}
-
-// esp_err_t ICACHE_FLASH_ATTR esp_wifi_scan_get_ap_records(uint16_t *number, wifi_ap_record_t *ap_records) {
-//   if (*number <= _ap_records.size()) {
-//     *number = _ap_records.size();
-//   }
-//   size_t i = 0;
-//   for (auto &&record : _ap_records) {
-//       ap_records[i] = record;
-//       ++i;
-//       if (i >= *number)
-//           break;
-//   }
-//   return ESP_OK;
-// }
 
 void scan_loop() {
   int ii = 0;
