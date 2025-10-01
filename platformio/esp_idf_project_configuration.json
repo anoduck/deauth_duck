@@ -1,0 +1,30 @@
+{
+  "Deauth-Duck": {
+    "build": {
+      "compileArgs": [
+        "-Wl",
+        "-z",
+        "muldefs"
+      ],
+      "ninjaArgs": [],
+      "buildDirectoryPath": "/home/vassilios/Sandbox/deauth_duck/platformio/build",
+      "sdkconfigDefaults": [],
+      "sdkconfigFilePath": ""
+    },
+    "env": {},
+    "flashBaudRate": "",
+    "idfTarget": "",
+    "monitorBaudRate": "",
+    "openOCD": {
+      "debugLevel": -1,
+      "configs": [],
+      "args": []
+    },
+    "tasks": {
+      "preBuild": "",
+      "preFlash": "",
+      "postBuild": "",
+      "postFlash": ""
+    }
+  }
+}
