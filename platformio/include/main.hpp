@@ -7,6 +7,7 @@
 #include <esp_wifi_types.h>
 #include <esp_wifi_netif.h>
 #include <esp_mem.h>
+#include <EEPROM.h>
 
 // Define wifi constants
 #define LED_PIN 2

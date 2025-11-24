@@ -1,3 +1,6 @@
 cmake_minimum_required(VERSION 3.16.0)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+include(/home/vassilios/.platformio/packages/framework-espidf/tools/cmake/project.cmake)
 project(platformio)
+set(CMAKE_C_COMPILER "/home/vassilios/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc")
+set(CMAKE_CXX_COMPILER "/home/vassilios/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-g++")
+set(CMAKE_ASM_COMPILER "/home/vassilios/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32s3-elf-gcc")
