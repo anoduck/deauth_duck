@@ -21,11 +21,27 @@
 #include <esp_sleep.h>
 #include <nvs_flash.h>
 #include <regex.h>
-#include <MacRandomizer.h>
 #include "main.hpp"
 #include <math.h>
 
-MacRandomizer macRandom;
+// Define fallback values for wakeup causes if the current SDK headers don't provide them
+#ifndef ESP_SLEEP_WAKEUP_EXT0
+#define ESP_SLEEP_WAKEUP_EXT0 1
+#endif
+#ifndef ESP_SLEEP_WAKEUP_EXT1
+#define ESP_SLEEP_WAKEUP_EXT1 2
+#endif
+#ifndef ESP_SLEEP_WAKEUP_TIMER
+#define ESP_SLEEP_WAKEUP_TIMER 3
+#endif
+#ifndef ESP_SLEEP_WAKEUP_TOUCHPAD
+#define ESP_SLEEP_WAKEUP_TOUCHPAD 4
+#endif
+#ifndef ESP_SLEEP_WAKEUP_ULP
+#define ESP_SLEEP_WAKEUP_ULP 5
+#endif
+
+// MacRandomizer macRandom;
 
 // Global Variables
 // -----------------------------------------
@@ -39,7 +55,7 @@ int retransmissionSessions = 3; // Number of times to repeat the retransmission 
 // ------------------------------------------
 void print_wakeup_reason()
 {
-  esp_sleep_wakeup_cause_t wakeup_reason;
+  int wakeup_reason;
 
   wakeup_reason = esp_sleep_get_wakeup_cause();
 
@@ -270,6 +286,3 @@ void loop() {
   Serial.flush();
   bool esp_deep_sleep_try();
 };
-
-void setup();
-void loop();
