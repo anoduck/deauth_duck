@@ -10,7 +10,7 @@
 # =============================================================
 NOW=$(date --rfc-3339=s)
 REPOBASE="$HOME/Sandbox/deauth_duck"
-REPO="$REPOBASE/arduino"
+REPO="$REPOBASE"
 SKETCHBOOK="$HOME/Arduino/sketch_nov25a"
 
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
