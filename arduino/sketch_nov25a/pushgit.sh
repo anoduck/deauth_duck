@@ -38,6 +38,7 @@ commit_changes () {
 	skgit pull
   skgit add -A
   skgit commit -am "Pushing newest changes $NOW"
+	skgit pull
   skgit push
 	pushd -1 || exit 1
 }

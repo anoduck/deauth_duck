@@ -31,12 +31,12 @@ typedef struct {
   * @brief     Promiscuous frame type
   *
   */
-typedef enum {
-  WIFI_PKT_MGMT,  /**< Management frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_CTRL,  /**< Control frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_DATA,  /**< Data frame, indiciates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_MISC  /**< Other type, such as MIMO etc. 'buf' argument is wifi_promiscuous_pkt_t but the payload is zero length. */
-} wifi_promiscuous_pkt_type_t;
+// typedef enum {
+//   WIFI_PKT_MGMT,  /**< Management frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
+//   WIFI_PKT_CTRL,  /**< Control frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
+//   WIFI_PKT_DATA,  /**< Data frame, indiciates 'buf' argument is wifi_promiscuous_pkt_t */
+//   WIFI_PKT_MISC  /**< Other type, such as MIMO etc. 'buf' argument is wifi_promiscuous_pkt_t but the payload is zero length. */
+// } wifi_promiscuous_pkt_type_t;
 
 typedef enum {
     ASSOCIATION_REQ,
@@ -56,18 +56,18 @@ typedef enum {
     ACTION_NACK,
 } wifi_mgmt_subtypes_t;
 
-typedef struct {
-  unsigned vers:2;
-  wifi_promiscuous_pkt_type_t type:2;
-  wifi_mgmt_subtypes_t subtype:4;
-  unsigned ds:2;
-  unsigned moreFrag:1;
-  unsigned retry:1;
-  unsigned pwrMgt:1;
-  unsigned moreData:1;
-  unsigned protect:1;
-  unsigned order:1;
-} __attribute__((packed)) wifi_80211_fctl;
+// typedef struct {
+//   unsigned vers:2;
+//   wifi_promiscuous_pkt_type_t type:2;
+//   wifi_mgmt_subtypes_t subtype:4;
+//   unsigned ds:2;
+//   unsigned moreFrag:1;
+//   unsigned retry:1;
+//   unsigned pwrMgt:1;
+//   unsigned moreData:1;
+//   unsigned protect:1;
+//   unsigned order:1;
+// } __attribute__((packed)) wifi_80211_fctl;
 
 typedef struct {
   mac_hdr_t hdr;

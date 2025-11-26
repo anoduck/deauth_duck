@@ -14,14 +14,14 @@ extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32
 }
 // ---------------------------------------------------------------------------------------
 #include "WiFi.h"
+#include "wifi_tx.cpp"
+#include "types.h"
 #include <esp_wifi.h>
 #include <esp_pm.h>
 // #include <esp_wifi_netif.h>
 #include <esp_wifi_types.h>
-// #include <esp_wifi_types_generic.h>
+#include <esp_wifi_types_generic.h>
 // #include <esp_wifi_ap_get_sta_list.h>
-#include "wifi_tx.cpp"
-#include "types.h"
 #include <MacAddress.h>
 #include <MacRandomizer.h>
 
@@ -36,8 +36,8 @@ MacRandomizer macRandom;
 
 // Deauth Constants
 // -----------------------------------------
-// const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
-const wifi_packet_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
+const wifi_promiscuous_pkt_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
+// const wifi_packet_t *raw_packet = (wifi_promiscuous_pkt_t*)cbuf;
 const wifi_packet_t *packet = (wifi_packet_t*)raw_packet->payload;
 const mac_hdr_t *mac_header = &packet->hdr;
 
@@ -78,6 +78,10 @@ const int TIME_TO_SLEEP = 300;
 #endif
 #ifndef LED
 #define BLINK_LED()
+#endif
+
+#ifndef wifi_promiscuous_pkt_type_t
+#define wifi_promiscuous_pkt_type_t()
 #endif
 
 void blink_led(int num_times, int blink_duration);
@@ -149,17 +153,11 @@ esp_err_t esp_wifi_80211_tx(wifi_interface_t ifx, const void *buffer, int len, b
 //  WiFi.mode(WIFI_OFF);
 //}
 
-typedef enum {
-  WIFI_PKT_MGMT,  /**< Management frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_CTRL,  /**< Control frame, indicates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_DATA,  /**< Data frame, indiciates 'buf' argument is wifi_promiscuous_pkt_t */
-  WIFI_PKT_MISC  /**< Other type, such as MIMO etc. 'buf' argument is wifi_promiscuous_pkt_t but the payload is zero length. */
-} wifi_promiscuous_pkt_type_t;
-
 // ----------------------------------------------------------------------------------------------
 // Sniffer Function | wifi_promiscuous_cb_t |  wifi_promiscuous_pkt_type_t type
 // ----------------------------------------------------------------------------------------------
-IRAM_ATTR void sniffer(void *buf, wifi_promiscuous_pkt_type_t type) {
+// static void IRAM_ATTR wifi_sniffer_cb(void *recv_buf, wifi_promiscuous_pkt_type_t type) {
+static void IRAM_ATTR sniffer(void* buf, wifi_promiscuous_pkt_type_t type) {
   wifi_packet_t *packet = (wifi_promiscuous_pkt_t*)raw_packet->payload;
   mac_hdr_t *mac_header = &packet->hdr;
   uint16_t packet_length = raw_packet->rx_ctrl.sig_len - sizeof(mac_hdr_t);
