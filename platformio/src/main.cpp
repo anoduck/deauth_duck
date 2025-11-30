@@ -1,14 +1,12 @@
 // Include Statements
 // -----------------------------------------
-// #include <Arduino.h>
-#include <WiFi.h>
+#include <Arduino.h>
 #include <WiFi.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
 #include <string.h>
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <esp_wifi.h>
 #include <esp_wifi_default.h>
@@ -21,7 +19,7 @@
 #include <esp_sleep.h>
 #include <nvs_flash.h>
 #include <regex.h>
-#include "main.hpp"
+#include "../include/main.hpp"
 #include <math.h>
 
 // Define fallback values for wakeup causes if the current SDK headers don't provide them
@@ -82,77 +80,77 @@ void print_wakeup_reason()
   }
 }
 
-static void print_cipher_type(int pairwise_cipher, int group_cipher)
-{
-    switch (pairwise_cipher) {
-    case WIFI_CIPHER_TYPE_NONE:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_NONE");
-        break;
-    case WIFI_CIPHER_TYPE_WEP40:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_WEP40");
-        break;
-    case WIFI_CIPHER_TYPE_WEP104:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_WEP104");
-        break;
-    case WIFI_CIPHER_TYPE_TKIP:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_TKIP");
-        break;
-    case WIFI_CIPHER_TYPE_CCMP:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_CCMP");
-        break;
-    case WIFI_CIPHER_TYPE_TKIP_CCMP:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_TKIP_CCMP");
-        break;
-    case WIFI_CIPHER_TYPE_AES_CMAC128:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_AES_CMAC128");
-        break;
-    case WIFI_CIPHER_TYPE_SMS4:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_SMS4");
-        break;
-    case WIFI_CIPHER_TYPE_GCMP:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_GCMP");
-        break;
-    case WIFI_CIPHER_TYPE_GCMP256:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_GCMP256");
-        break;
-    default:
-        ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_UNKNOWN");
-        break;
-    }
+// static void print_cipher_type(int pairwise_cipher, int group_cipher)
+// {
+//     switch (pairwise_cipher) {
+//     case WIFI_CIPHER_TYPE_NONE:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_NONE");
+//         break;
+//     case WIFI_CIPHER_TYPE_WEP40:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_WEP40");
+//         break;
+//     case WIFI_CIPHER_TYPE_WEP104:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_WEP104");
+//         break;
+//     case WIFI_CIPHER_TYPE_TKIP:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_TKIP");
+//         break;
+//     case WIFI_CIPHER_TYPE_CCMP:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_CCMP");
+//         break;
+//     case WIFI_CIPHER_TYPE_TKIP_CCMP:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_TKIP_CCMP");
+//         break;
+//     case WIFI_CIPHER_TYPE_AES_CMAC128:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_AES_CMAC128");
+//         break;
+//     case WIFI_CIPHER_TYPE_SMS4:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_SMS4");
+//         break;
+//     case WIFI_CIPHER_TYPE_GCMP:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_GCMP");
+//         break;
+//     case WIFI_CIPHER_TYPE_GCMP256:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_GCMP256");
+//         break;
+//     default:
+//         ESP_LOGI(TAG, "Pairwise Cipher \tWIFI_CIPHER_TYPE_UNKNOWN");
+//         break;
+//     }
 
-    switch (group_cipher) {
-    case WIFI_CIPHER_TYPE_NONE:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_NONE");
-        break;
-    case WIFI_CIPHER_TYPE_WEP40:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_WEP40");
-        break;
-    case WIFI_CIPHER_TYPE_WEP104:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_WEP104");
-        break;
-    case WIFI_CIPHER_TYPE_TKIP:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_TKIP");
-        break;
-    case WIFI_CIPHER_TYPE_CCMP:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_CCMP");
-        break;
-    case WIFI_CIPHER_TYPE_TKIP_CCMP:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_TKIP_CCMP");
-        break;
-    case WIFI_CIPHER_TYPE_SMS4:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_SMS4");
-        break;
-    case WIFI_CIPHER_TYPE_GCMP:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_GCMP");
-        break;
-    case WIFI_CIPHER_TYPE_GCMP256:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_GCMP256");
-        break;
-    default:
-        ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_UNKNOWN");
-        break;
-    }
-}
+//     switch (group_cipher) {
+//     case WIFI_CIPHER_TYPE_NONE:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_NONE");
+//         break;
+//     case WIFI_CIPHER_TYPE_WEP40:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_WEP40");
+//         break;
+//     case WIFI_CIPHER_TYPE_WEP104:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_WEP104");
+//         break;
+//     case WIFI_CIPHER_TYPE_TKIP:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_TKIP");
+//         break;
+//     case WIFI_CIPHER_TYPE_CCMP:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_CCMP");
+//         break;
+//     case WIFI_CIPHER_TYPE_TKIP_CCMP:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_TKIP_CCMP");
+//         break;
+//     case WIFI_CIPHER_TYPE_SMS4:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_SMS4");
+//         break;
+//     case WIFI_CIPHER_TYPE_GCMP:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_GCMP");
+//         break;
+//     case WIFI_CIPHER_TYPE_GCMP256:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_GCMP256");
+//         break;
+//     default:
+//         ESP_LOGI(TAG, "Group Cipher \tWIFI_CIPHER_TYPE_UNKNOWN");
+//         break;
+//     }
+// }
 
 wifi_ap_record_t* combine_arrays(wifi_ap_record_t *array1, size_t size1, wifi_ap_record_t *array2, size_t size2) {
   wifi_ap_record_t* combined_array = (wifi_ap_record_t*)malloc((size1 + size2) * sizeof(wifi_ap_record_t));
@@ -170,7 +168,8 @@ wifi_ap_record_t* combine_arrays(wifi_ap_record_t *array1, size_t size1, wifi_ap
 // ------------------------------------------
 void setup() {
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);   // Turn off LED
+  digitalWrite(LED_PIN, 0x0);   // Turn off LED
+  
   Serial.begin(115200);
   Serial.println("Setting up Network");
   delay(1000);
@@ -181,7 +180,7 @@ void setup() {
   print_wakeup_reason();
 
   // Enable promiscuous mode
-  bool esp_wifi_set_promiscuous(true);
+  // bool esp_wifi_set_promiscuous(true);
   esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
   Serial.println("Promiscuous Mode Enabled");
 
@@ -201,6 +200,8 @@ void setup() {
   Serial.println("Setting Country Code to: " + String(config.cc));
 
   wifi_country_t esp_wifi_set_country(config);
+  Serial.println("Country Code Set");
+  // loop();
 };
 
 float q = 0;
@@ -222,8 +223,6 @@ void loop() {
 
     while (ii < SCAN_ROUNDS)
     {
-      int i;
-
       for (int i = 0; i < size_charray; i++)
       {
         uint8_t wifi_channel = CHANNEL_LIST[i];
@@ -233,7 +232,14 @@ void loop() {
           .bssid = NULL,
           .channel = wifi_channel,
           .show_hidden = true,
-          .scan_type = WIFI_SCAN_TYPE_ACTIVE
+          .scan_time = {
+              .active = {
+                  .min = 100,
+                  .max = 300
+              }
+          },
+          .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+          .home_chan_dwell_time = 0
         };
         esp_wifi_scan_start(&wifi_scan_config, true);
         // https://github.com/jPerotto/easyMesh/blob/86fc3e6ade125eecc3f17547e51cf608ab99929b/src/espInterface.cpp
@@ -250,7 +256,7 @@ void loop() {
         if (num_networks > 0)
         {
           Serial.println("Networks found: " + String(num_networks));
-          wifi_ap_record_t *scan_result = combine_arrays(ap_records, num_networks, records, num_networks);
+          // wifi_ap_record_t *scan_result = combine_arrays(ap_records, num_networks, records, num_networks);
 
           delay(scan_delay);
         } else {
@@ -286,3 +292,11 @@ void loop() {
   Serial.flush();
   bool esp_deep_sleep_try();
 };
+
+int main() {
+  setup();
+  while (true) {
+    loop();
+  }
+  return 0;
+}
